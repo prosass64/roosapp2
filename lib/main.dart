@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart'; // Para la localización
 import 'package:table_calendar/table_calendar.dart';
+//import 'package:intl/intl.dart'; // Manejo de fechas y localización
 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert'; // Para codificar/decodificar los datos como JSON
@@ -17,6 +19,14 @@ class HematoOncoApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
+      localizationsDelegates: [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: [
+        const Locale('es', ''), // Español
+      ],
       home: CalendarPage(),
     );
   }
@@ -68,6 +78,7 @@ class _CalendarPageState extends State<CalendarPage> {
       body: Column(
         children: [
           TableCalendar(
+            locale: 'es_ES', // Configurar el idioma a español
             firstDay: DateTime.utc(2020, 1, 1),
             lastDay: DateTime.utc(2030, 12, 31),
             focusedDay: _selectedDay,
