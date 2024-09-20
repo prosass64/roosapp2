@@ -6,6 +6,11 @@ import 'package:table_calendar/table_calendar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert'; // Para codificar/decodificar los datos como JSON
 
+import 'login_page.dart';
+import 'register_page.dart'; // Importa las pantallas de inicio de sesión y registro
+//import 'calendar_page.dart'; // Importa tu pantalla de calendario
+
+
 
 void main() {
   runApp(HematoOncoApp());
@@ -16,10 +21,8 @@ class HematoOncoApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Hemato-Oncología',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
-      localizationsDelegates: [
+      theme: ThemeData(primarySwatch: Colors.blue),
+       localizationsDelegates: [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
@@ -27,8 +30,27 @@ class HematoOncoApp extends StatelessWidget {
       supportedLocales: [
         const Locale('es', ''), // Español
       ],
-      home: CalendarPage(),
+      home: FutureBuilder(
+        future: _checkLoginStatus(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return CircularProgressIndicator();
+          } else {
+            return snapshot.data == true ? CalendarPage() : LoginPage();
+          }
+        },
+      ),
+      routes: {
+        '/login': (context) => LoginPage(),
+        '/register': (context) => RegisterPage(),
+        '/home': (context) => CalendarPage(),
+      },
     );
+  }
+
+  Future<bool> _checkLoginStatus() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('isLoggedIn') ?? false;
   }
 }
 
