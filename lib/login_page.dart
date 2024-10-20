@@ -20,7 +20,7 @@ class _LoginPageState extends State<LoginPage> {
       await prefs.setBool('isLoggedIn', true);
       Navigator.pushReplacementNamed(context, '/home');
     } else {
-      // Mostrar error
+      // Mostrar error de credenciales incorrectas
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Credenciales inválidas')));
     }
   }
@@ -48,7 +48,7 @@ class _LoginPageState extends State<LoginPage> {
               child: Text('Iniciar Sesión'),
             ),
             TextButton(
-              onPressed: () => Navigator.pushNamed(context, '/register'),
+              onPressed: () => Navigator.pushNamed(context, '/register'), // Navegar a la pantalla de registro
               child: Text('Registrarse'),
             ),
           ],

@@ -15,7 +15,15 @@ class _RegisterPageState extends State<RegisterPage> {
 
   Future<void> _register() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    
+
+    // Verificar si ya hay un usuario registrado con este correo
+    final String? storedEmail = prefs.getString('email');
+    if (storedEmail == _emailController.text) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Este correo ya está registrado.')));
+      return;
+    }
+
+    // Registrar nuevo usuario
     await prefs.setString('name', _nameController.text);
     await prefs.setString('lastName', _lastNameController.text);
     await prefs.setString('dpi', _dpiController.text);
