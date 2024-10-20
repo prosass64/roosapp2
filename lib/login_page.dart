@@ -12,12 +12,30 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _login() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
+
+    // Verificar credenciales del administrador predefinido
+    final String? adminEmail = prefs.getString('adminEmail');
+    final String? adminPassword = prefs.getString('adminPassword');
+    print('Email ingresado: ${_emailController.text}');
+    print('Contraseña ingresada: ${_passwordController.text}');
+    print('Administrador registrado: $adminEmail, $adminPassword');
+
+    if (_emailController.text == adminEmail && _passwordController.text == adminPassword) {
+      // Login exitoso como Administrador
+      await prefs.setBool('isLoggedIn', true);
+      await prefs.setString('role', 'Administrador'); // Guardar rol de administrador
+      Navigator.pushReplacementNamed(context, '/admin');
+      return;
+    }
+
+    // Verificar credenciales de usuarios almacenados
     final String? storedEmail = prefs.getString('email');
     final String? storedPassword = prefs.getString('password');
 
     if (_emailController.text == storedEmail && _passwordController.text == storedPassword) {
-      // Login exitoso
+      // Login exitoso como usuario regular (Paciente)
       await prefs.setBool('isLoggedIn', true);
+      await prefs.setString('role', 'Paciente');
       Navigator.pushReplacementNamed(context, '/home');
     } else {
       // Mostrar error de credenciales incorrectas

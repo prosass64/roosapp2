@@ -44,11 +44,25 @@ class _CalendarPageState extends State<CalendarPage> {
     await prefs.setString('patientData', encodedData);
   }
 
+  // Función para cerrar sesión
+  Future<void> _logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isLoggedIn', false); // Eliminar el estado de inicio de sesión
+    Navigator.pushReplacementNamed(context, '/login'); // Volver a la pantalla de inicio de sesión
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text('Registro de Tratamientos y Síntomas'),
+          actions: [
+          IconButton(
+            icon: Icon(Icons.logout),
+            onPressed: _logout, // Botón para cerrar sesión
+            tooltip: 'Cerrar sesión',
+          ),
+        ],
       ),
       body: Column(
         children: [

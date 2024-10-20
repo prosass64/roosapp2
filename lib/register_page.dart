@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 class RegisterPage extends StatefulWidget {
   @override
@@ -13,26 +14,44 @@ class _RegisterPageState extends State<RegisterPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  Future<void> _register() async {
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
 
-    // Verificar si ya hay un usuario registrado con este correo
-    final String? storedEmail = prefs.getString('email');
-    if (storedEmail == _emailController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Este correo ya está registrado.')));
-      return;
-    }
+Future<void> _register() async {
+  final SharedPreferences prefs = await SharedPreferences.getInstance();
 
-    // Registrar nuevo usuario
-    await prefs.setString('name', _nameController.text);
-    await prefs.setString('lastName', _lastNameController.text);
-    await prefs.setString('dpi', _dpiController.text);
-    await prefs.setString('email', _emailController.text);
-    await prefs.setString('password', _passwordController.text);
-
-    await prefs.setBool('isLoggedIn', true);
-    Navigator.pushReplacementNamed(context, '/home');
+  // Verificar si ya hay un usuario registrado con este correo
+  final String? storedEmail = prefs.getString('email');
+  if (storedEmail == _emailController.text) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Este correo ya está registrado.')));
+    return;
   }
+
+  // Registrar nuevo usuario como Paciente
+  final patient = {
+    'name': _nameController.text,
+    'lastName': _lastNameController.text,
+    'dpi': _dpiController.text,
+    'email': _emailController.text,
+    'password': _passwordController.text,
+    'role': 'Paciente',
+  };
+
+  await prefs.setString('name', patient['name']!);
+  await prefs.setString('lastName', patient['lastName']!);
+  await prefs.setString('dpi', patient['dpi']!);
+  await prefs.setString('email', patient['email']!);
+  await prefs.setString('password', patient['password']!);
+  await prefs.setString('role', patient['role']!);
+
+  // Guardar paciente en la lista
+  List<String>? patients = prefs.getStringList('patients') ?? [];
+  patients.add(jsonEncode(patient));
+  await prefs.setStringList('patients', patients);
+
+  await prefs.setBool('isLoggedIn', true);
+  Navigator.pushReplacementNamed(context, '/home');
+}
+
+
 
   @override
   Widget build(BuildContext context) {
