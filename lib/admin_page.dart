@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'calendar_page.dart';
+import 'dart:convert'; // Para decodificar los datos JSON almacenados
 
 class AdminPage extends StatefulWidget {
   @override
   _AdminPageState createState() => _AdminPageState();
 }
-
-
 
 class _AdminPageState extends State<AdminPage> {
   final TextEditingController _searchController = TextEditingController();
@@ -24,11 +22,13 @@ class _AdminPageState extends State<AdminPage> {
   // Función para cargar pacientes desde SharedPreferences
   Future<void> _loadPatients() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    List<String>? storedPatients = prefs.getStringList('patients'); // Guardamos los pacientes en una lista
+    List<String>? storedPatients = prefs.getStringList('patients'); // Obtener la lista de pacientes
     if (storedPatients != null) {
       setState(() {
-        _patients = storedPatients.map((patient) => Map<String, String>.from(prefs.getString(patient) as Map)).toList();
-        _filteredPatients = List.from(_patients); // Inicialmente, mostrar todos los pacientes
+        _patients = storedPatients
+            .map((patient) => Map<String, String>.from(jsonDecode(patient)))
+            .toList();
+        _filteredPatients = List.from(_patients); // Mostrar todos los pacientes por defecto
       });
     }
   }
@@ -54,16 +54,6 @@ class _AdminPageState extends State<AdminPage> {
     });
   }
 
-  // Función para ver el calendario del paciente seleccionado
-  void _viewPatientCalendar(Map<String, String> patient) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => CalendarPage(), // Aquí puedes personalizar para cargar el calendario del paciente
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -83,7 +73,6 @@ class _AdminPageState extends State<AdminPage> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // Dropdown para seleccionar el criterio de búsqueda
             DropdownButton<String>(
               value: _searchCriteria,
               onChanged: (String? newValue) {
@@ -99,11 +88,10 @@ class _AdminPageState extends State<AdminPage> {
                 );
               }).toList(),
             ),
-            // Campo de texto para ingresar el criterio de búsqueda
             TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                labelText: 'Ingrese $_searchCriteria',
+                labelText: 'Ingrese $_searchCriteria del paciente',
               ),
               onChanged: (text) {
                 _searchPatient(); // Actualizar la búsqueda en tiempo real
@@ -120,9 +108,6 @@ class _AdminPageState extends State<AdminPage> {
                         return ListTile(
                           title: Text(patient['name'] ?? 'Sin nombre'),
                           subtitle: Text('DPI: ${patient['dpi']} - Correo: ${patient['email']}'),
-                          onTap: () {
-                            _viewPatientCalendar(patient); // Ver calendario al seleccionar
-                          },
                         );
                       },
                     ),
