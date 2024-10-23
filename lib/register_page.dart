@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart'; // Para la base de datos
 import 'database.dart'; // Nuestra clase de base de datos
-import 'calendar_page.dart';//Calendario
+import 'calendar_page.dart';
 
 class RegisterPage extends StatefulWidget {
   @override
@@ -68,15 +68,14 @@ class _RegisterPageState extends State<RegisterPage> {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool('isLoggedIn', true);
         await prefs.setString('email', _emailController.text); // Guardar el email del usuario
-              // Navegar a CalendarPage pasando el correo electrónico del paciente
-          Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-              builder: (context) => CalendarPage(patientEmail: _emailController.text), // Pasar el correo
-            ),
-          );
-        // Navegar a la pantalla principal o de inicio
-        Navigator.pushReplacementNamed(context, '/home');
+
+        // Navegar a CalendarPage pasando el correo electrónico del paciente
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CalendarPage(patientEmail: _emailController.text), // Pasar el correo
+          ),
+        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: No se pudo asignar el rol de Paciente.')));
       }

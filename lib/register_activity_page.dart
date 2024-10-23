@@ -22,6 +22,7 @@ class _RegisterActivityPageState extends State<RegisterActivityPage> {
   late List<String> _selectedSymptoms;
   late TextEditingController _noteController;
   late DateTime _currentDay;
+  int? _existingEntryId; // Para almacenar si ya existe una entrada
 
   @override
   void initState() {
@@ -30,6 +31,7 @@ class _RegisterActivityPageState extends State<RegisterActivityPage> {
     _selectedTreatment = '';
     _selectedSymptoms = [];
     _noteController = TextEditingController();
+    _loadExistingEntry(); // Cargar la entrada existente si la hay
   }
 
   @override
@@ -41,7 +43,43 @@ class _RegisterActivityPageState extends State<RegisterActivityPage> {
   void _changeDay(int days) {
     setState(() {
       _currentDay = _currentDay.add(Duration(days: days));
+      _loadExistingEntry(); // Cargar la entrada del nuevo día si la hay
     });
+  }
+
+  // Cargar una entrada existente si ya hay una en la base de datos para el día seleccionado
+  Future<void> _loadExistingEntry() async {
+    Database? db = await DatabaseHelper.instance.database;
+
+    // Obtener el ID del calendario del usuario
+    final List<Map<String, dynamic>> calendarResult = await db!.query(
+      DatabaseHelper.tableCalendarios,
+      where: 'id_usuario = ?',
+      whereArgs: [widget.userId],
+    );
+
+    if (calendarResult.isNotEmpty) {
+      int idCalendario = calendarResult.first['id_calendario'];
+
+      // Verificar si ya existe una entrada para el día seleccionado
+      final List<Map<String, dynamic>> entryResult = await db.query(
+        DatabaseHelper.tableCalendarEntries,
+        where: 'id_calendario = ? AND fecha = ?',
+        whereArgs: [idCalendario, _currentDay.toIso8601String()],
+      );
+
+      if (entryResult.isNotEmpty) {
+        setState(() {
+          _existingEntryId = entryResult.first['id_entrada']; // Guardar el ID de la entrada existente
+          _noteController.text = entryResult.first['notas'] ?? '';
+        });
+      } else {
+        setState(() {
+          _existingEntryId = null; // No existe entrada para este día
+          _noteController.clear(); // Limpiar los datos
+        });
+      }
+    }
   }
 
   // Guardar la entrada y los síntomas seleccionados en la base de datos
@@ -58,18 +96,36 @@ class _RegisterActivityPageState extends State<RegisterActivityPage> {
     if (calendarResult.isNotEmpty) {
       int idCalendario = calendarResult.first['id_calendario'];
 
-      // Insertar la entrada en la tabla Calendar_Entries
-      int entryId = await db.insert(DatabaseHelper.tableCalendarEntries, {
-        'id_calendario': idCalendario,
-        'fecha': _currentDay.toIso8601String(),
-        'id_tratamiento': null, // Se puede añadir lógica de tratamiento si es necesario
-        'notas': _noteController.text,
-      });
+      if (_existingEntryId != null) {
+        // Si ya existe una entrada, actualizarla
+        await db.update(
+          DatabaseHelper.tableCalendarEntries,
+          {
+            'notas': _noteController.text,
+          },
+          where: 'id_entrada = ?',
+          whereArgs: [_existingEntryId],
+        );
+      } else {
+        // Si no existe, crear una nueva entrada
+        _existingEntryId = await db.insert(DatabaseHelper.tableCalendarEntries, {
+          'id_calendario': idCalendario,
+          'fecha': _currentDay.toIso8601String(),
+          'id_tratamiento': null, // Se puede añadir lógica de tratamiento si es necesario
+          'notas': _noteController.text,
+        });
+      }
 
-      // Insertar los síntomas seleccionados en la tabla Entry_Symptoms
+      // Insertar o actualizar los síntomas seleccionados en la tabla Entry_Symptoms
+      await db.delete(
+        DatabaseHelper.tableEntrySymptoms,
+        where: 'id_entrada = ?',
+        whereArgs: [_existingEntryId],
+      );
+
       for (String symptom in _selectedSymptoms) {
         final List<Map<String, dynamic>> symptomResult = await db.query(
-          DatabaseHelper.tableSintomas, // Aquí usamos el nombre de la tabla
+          DatabaseHelper.tableSintomas,
           where: 'nombre_sintoma = ?',
           whereArgs: [symptom],
         );
@@ -78,7 +134,7 @@ class _RegisterActivityPageState extends State<RegisterActivityPage> {
           int symptomId = symptomResult.first['id_sintoma'];
 
           await db.insert(DatabaseHelper.tableEntrySymptoms, {
-            'id_entrada': entryId,
+            'id_entrada': _existingEntryId,
             'id_sintoma': symptomId,
           });
         }

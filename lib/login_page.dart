@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart'; // Para la base de datos
 import 'database.dart'; // Nuestra clase de base de datos
-import 'calendar_page.dart';//Calendario
+import 'calendar_page.dart'; //Calendario
+import 'register_page.dart'; // Importar la página de registro
 
 class LoginPage extends StatefulWidget {
   @override
@@ -64,6 +65,16 @@ class _LoginPageState extends State<LoginPage> {
             ElevatedButton(
               onPressed: _login, // Llamar a la función de login
               child: Text('Iniciar Sesión'),
+            ),
+            SizedBox(height: 10),
+            TextButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => RegisterPage()), // Navegar a la página de registro
+                );
+              },
+              child: Text('¿No tienes una cuenta? Registrarse'),
             ),
           ],
         ),
