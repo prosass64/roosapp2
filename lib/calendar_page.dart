@@ -1,62 +1,92 @@
 import 'package:flutter/material.dart';
-//import 'package:flutter_localizations/flutter_localizations.dart'; // Para la localización
 import 'package:table_calendar/table_calendar.dart';
-//import 'package:intl/intl.dart'; // Manejo de fechas y localización
-
+import 'package:sqflite/sqflite.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
+import 'database.dart';
+import 'register_activity_page.dart';
 
 class CalendarPage extends StatefulWidget {
+  final String patientEmail; // Email del paciente logueado
+
+  CalendarPage({required this.patientEmail});
+
   @override
   _CalendarPageState createState() => _CalendarPageState();
-  
 }
 
 class _CalendarPageState extends State<CalendarPage> {
   DateTime _selectedDay = DateTime.now();
-  Map<DateTime, Map<String, dynamic>> _patientData = {};
+  Map<DateTime, List<Map<String, dynamic>>> _entriesForDay = {}; // Mapa para almacenar las entradas del calendario
+  int? _patientId;
 
   @override
   void initState() {
     super.initState();
-    _loadPatientData();
+    _loadPatientData(); // Cargar los datos del paciente al iniciar
   }
 
-  // Cargar los datos almacenados localmente
-  Future<void> _loadPatientData() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String? patientDataJson = prefs.getString('patientData');
-    
-    if (patientDataJson != null) {
-      setState(() {
-        Map<String, dynamic> decodedData = jsonDecode(patientDataJson);
-        _patientData = decodedData.map((key, value) => MapEntry(DateTime.parse(key), value));
-      });
-    }
-  }
+  // Cargar los datos del paciente actual
+Future<void> _loadPatientData() async {
+  Database? db = await DatabaseHelper.instance.database;
 
-  // Guardar los datos en almacenamiento local
-  Future<void> _savePatientData() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String encodedData = jsonEncode(
-      _patientData.map((key, value) => MapEntry(key.toIso8601String(), value)),
+  // Obtener el ID del usuario basado en el correo electrónico (o cualquier otro identificador único)
+  final List<Map<String, dynamic>> result = await db!.query(
+    DatabaseHelper.tableUsuarios,
+    where: 'email = ?', // Usar email u otro identificador
+    whereArgs: [widget.patientEmail], // El correo electrónico del usuario actual
+  );
+
+  if (result.isNotEmpty) {
+    setState(() {
+      _patientId = result.first['id_usuario']; // Asignar el id del usuario
+    });
+    _loadCalendarEntries(); // Cargar las entradas de calendario para el paciente
+  } else {
+    // Si no se encuentra el paciente, mostrar un error
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error: No se encontró el usuario con ese correo')),
     );
-    await prefs.setString('patientData', encodedData);
   }
+}
 
-  // Función para cerrar sesión
-  Future<void> _logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isLoggedIn', false); // Eliminar el estado de inicio de sesión
-    Navigator.pushReplacementNamed(context, '/login'); // Volver a la pantalla de inicio de sesión
+
+
+  // Cargar las entradas de calendario del paciente
+  Future<void> _loadCalendarEntries() async {
+    if (_patientId == null) {
+      // Muestra un error o no permite registrar actividades si el ID no se ha cargado correctamente
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al cargar el ID del paciente')));
+      return;
+    }
+
+    Database? db = await DatabaseHelper.instance.database;
+
+    final List<Map<String, dynamic>> entries = await db!.query(
+      DatabaseHelper.tableCalendarEntries,
+      where: 'id_calendario = (SELECT id_calendario FROM Calendarios WHERE id_usuario = ?)',
+      whereArgs: [_patientId],
+    );
+
+    Map<DateTime, List<Map<String, dynamic>>> newEntriesForDay = {};
+    for (var entry in entries) {
+      DateTime entryDate = DateTime.parse(entry['fecha']);
+      if (newEntriesForDay[entryDate] == null) {
+        newEntriesForDay[entryDate] = [];
+      }
+      newEntriesForDay[entryDate]!.add(entry); // Añadir las entradas al mapa
+    }
+
+    setState(() {
+      _entriesForDay = newEntriesForDay;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Registro de Tratamientos y Síntomas'),
-          actions: [
+        title: Text('Calendario del Paciente'),
+        actions: [
           IconButton(
             icon: Icon(Icons.logout),
             onPressed: _logout, // Botón para cerrar sesión
@@ -80,24 +110,9 @@ class _CalendarPageState extends State<CalendarPage> {
               });
             },
             calendarBuilders: CalendarBuilders(
-              markerBuilder: (context, day, events) {
-                if (_patientData[day] != null) {
-                  List<Widget> markers = [];
-
-                  if (_patientData[day]?['symptoms'] != null && (_patientData[day]?['symptoms'] as List).isNotEmpty) {
-                    markers.add(_buildMarker(Colors.orange));
-                  }
-                  if (_patientData[day]?['treatment'] != null && _patientData[day]?['treatment'] != '') {
-                    markers.add(_buildMarker(Colors.blue));
-                  }
-                  if (_patientData[day]?['customNote'] != null && _patientData[day]?['customNote'] != '') {
-                    markers.add(_buildMarker(Colors.black));
-                  }
-
-                  return Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: markers,
-                  );
+              markerBuilder: (context, day, focusedDay) {
+                if (_entriesForDay[day] != null) {
+                  return _buildMarkers(_entriesForDay[day]!);
                 }
                 return null;
               },
@@ -106,218 +121,91 @@ class _CalendarPageState extends State<CalendarPage> {
           SizedBox(height: 16.0),
           ElevatedButton(
             onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => RegisterActivityPage(
-                    selectedDay: _selectedDay,
-                    patientData: _patientData, 
-                    onSave: (day, treatment, symptoms, customNote) {
-                      setState(() {
-                        _patientData[day] = {
-                          'treatment': treatment,
-                          'symptoms': symptoms,
-                          'customNote': customNote,
-                        };
-                      });
-                      _savePatientData();
-                    },
+              if (_patientId != null) {
+                Navigator.push<dynamic>(
+                  context,
+                  MaterialPageRoute<dynamic>(
+                    builder: (BuildContext context) => RegisterActivityPage(
+                      selectedDay: _selectedDay,
+                      userId: _patientId!, // Pasar el id_usuario al siguiente widget
+                      onSave: (DateTime day, String treatment, List<String> symptoms, String customNote) {
+                        setState(() {
+                          // Actualizar los datos de la entrada en la UI
+                          if (_entriesForDay[day] == null) {
+                            _entriesForDay[day] = <Map<String, dynamic>>[];
+                          }
+                          _entriesForDay[day]!.add(<String, dynamic>{
+                            'treatment': treatment,
+                            'symptoms': symptoms,
+                            'customNote': customNote,
+                          });
+                        });
+
+                        _loadCalendarEntries(); // Recargar entradas
+                      },
+                    ),
                   ),
-                ),
-              );
+                );
+              } else {
+                // Muestra un error si el patientId es nulo
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error: ID del paciente no encontrado.'),
+                  ),
+                );
+              }
             },
-            child: Text('Registrar/Editar Actividad'),
+            child: Text('Registrar/Editar Actividad'), // Esto define lo que se muestra en el botón
           ),
+
           SizedBox(height: 16.0),
           Expanded(
-            child: _buildRegisteredData(),
+            child: _buildRegisteredEntries(),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildMarker(Color color) {
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: 1.0),
-      width: 8.0,
-      height: 8.0,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: color,
-      ),
+  // Construir los marcadores para las fechas que tienen entradas
+  Widget _buildMarkers(List<Map<String, dynamic>> entries) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: entries.map((entry) {
+        return Container(
+          margin: EdgeInsets.symmetric(horizontal: 2.0),
+          width: 8.0,
+          height: 8.0,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.blue, // Puedes cambiar el color según el tipo de entrada
+          ),
+        );
+      }).toList(),
     );
   }
 
-  Widget _buildRegisteredData() {
-    if (_patientData[_selectedDay] != null) {
-      return ListView(
-        children: [
-          ListTile(
-            title: Text('Tratamiento registrado:'),
-            subtitle: Text(_patientData[_selectedDay]?['treatment'] ?? 'Ninguno'),
-          ),
-          ListTile(
-            title: Text('Síntomas registrados:'),
-            subtitle: Text((_patientData[_selectedDay]?['symptoms']?.cast<String>()?.join(', ') ?? '')),
-          ),
-          ListTile(
-            title: Text('Nota personalizada:'),
-            subtitle: Text(_patientData[_selectedDay]?['customNote'] ?? 'Sin notas'),
-          ),
-        ],
-      );
-    } else {
-      return Center(
-        child: Text('No hay datos registrados para este día.'),
-      );
+  // Construir la lista de entradas registradas
+  Widget _buildRegisteredEntries() {
+    final entries = _entriesForDay[_selectedDay] ?? [];
+
+    if (entries.isEmpty) {
+      return Center(child: Text('No hay entradas para este día.'));
     }
-  }
-}
 
-class RegisterActivityPage extends StatefulWidget {
-  final DateTime selectedDay;
-  final Map<DateTime, Map<String, dynamic>> patientData; // Añadir este parámetro
-  final Function(DateTime, String, List<String>, String) onSave;
-
-  RegisterActivityPage({
-    required this.selectedDay,
-    required this.patientData, // Añadir este parámetro
-    required this.onSave,
-  });
-
-  @override
-  _RegisterActivityPageState createState() => _RegisterActivityPageState();
-}
-
-class _RegisterActivityPageState extends State<RegisterActivityPage> {
-  late String _selectedTreatment;
-  late List<String> _selectedSymptoms;
-  late TextEditingController _noteController;
-  late DateTime _currentDay;
-
-  @override
-  void initState() {
-    super.initState();
-    _currentDay = widget.selectedDay;
-    _selectedTreatment = '';
-    _selectedSymptoms = [];
-    _noteController = TextEditingController();
-    _loadDataForCurrentDay(); // Cargar los datos del día actual
-  }
-
-  @override
-  void dispose() {
-    _noteController.dispose();
-    super.dispose();
-  }
-
-  void _changeDay(int days) {
-    setState(() {
-      _currentDay = _currentDay.add(Duration(days: days));
-      _loadDataForCurrentDay(); // Cargar los datos del nuevo día
-    });
-  }
-
-  void _loadDataForCurrentDay() {
-    final patientData = widget.patientData[_currentDay] ?? {};
-    setState(() {
-      _selectedTreatment = patientData['treatment'] ?? '';
-      _selectedSymptoms = List<String>.from(patientData['symptoms'] ?? []);
-      _noteController.text = patientData['customNote'] ?? '';
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Registrar/Editar Actividad'),
-      ),
-      body: Column(
-        children: [
-          // Barra de control de fecha
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              IconButton(
-                icon: Icon(Icons.arrow_back),
-                onPressed: () {
-                  _changeDay(-1); // Retroceder un día
-                },
-              ),
-              Expanded(
-                child: Center(
-                  child: Text(
-                    "${_currentDay.day}/${_currentDay.month}/${_currentDay.year}",
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-              IconButton(
-                icon: Icon(Icons.arrow_forward),
-                onPressed: () {
-                  _changeDay(1); // Avanzar un día
-                },
-              ),
-            ],
-          ),
-          // Tratamiento
-          DropdownButton<String>(
-            value: _selectedTreatment.isEmpty ? null : _selectedTreatment,
-            hint: Text('Selecciona un tratamiento'),
-            onChanged: (String? newValue) {
-              setState(() {
-                _selectedTreatment = newValue ?? '';
-              });
-            },
-            items: <String>['Tratamiento A', 'Tratamiento B', 'Tratamiento C']
-                .map<DropdownMenuItem<String>>((String value) {
-              return DropdownMenuItem<String>(
-                value: value,
-                child: Text(value),
-              );
-            }).toList(),
-          ),
-          // Síntomas
-          Expanded(
-            child: ListView(
-              children: ['Dolor de Cabeza', 'Dolor de Cuerpo', 'Fatiga', 'Mareos', 'Vomitos', 'Fiebre', 'Dolor de estomago', 'Dolor de cabeza', 'Sangrado', 'Hinchazón', 'Caída de cabello', 'Dificultad para respirar']
-                  .map((symptom) => CheckboxListTile(
-                        title: Text(symptom),
-                        value: _selectedSymptoms.contains(symptom),
-                        onChanged: (bool? value) {
-                          setState(() {
-                            if (value == true) {
-                              _selectedSymptoms.add(symptom);
-                            } else {
-                              _selectedSymptoms.remove(symptom);
-                            }
-                          });
-                        },
-                      ))
-                  .toList(),
-            ),
-          ),
-          // Nota personalizada
-          TextField(
-            controller: _noteController,
-            decoration: InputDecoration(labelText: 'Añadir una nota'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              widget.onSave(
-                _currentDay,
-                _selectedTreatment,
-                _selectedSymptoms,
-                _noteController.text,
-              );
-              Navigator.pop(context);
-            },
-            child: Text('Guardar'),
-          ),
-        ],
-      ),
+    return ListView(
+      children: entries.map((entry) {
+        return ListTile(
+          title: Text('Nota: ${entry['notas']}'),
+        );
+      }).toList(),
     );
+  }
+
+  // Función para cerrar sesión
+  Future<void> _logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isLoggedIn', false); // Eliminar el estado de inicio de sesión
+    Navigator.pushReplacementNamed(context, '/login'); // Redirigir a la pantalla de inicio de sesión
   }
 }

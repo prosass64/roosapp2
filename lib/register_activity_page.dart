@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:sqflite/sqflite.dart'; // Para la base de datos
+import 'database.dart'; // Importar la clase de la base de datos
 
 class RegisterActivityPage extends StatefulWidget {
   final DateTime selectedDay;
-  final Map<DateTime, Map<String, dynamic>> patientData;
+  final int userId; // El ID del usuario actual
   final Function(DateTime, String, List<String>, String) onSave;
 
   RegisterActivityPage({
     required this.selectedDay,
-    required this.patientData,
+    required this.userId,
     required this.onSave,
   });
 
@@ -28,7 +30,6 @@ class _RegisterActivityPageState extends State<RegisterActivityPage> {
     _selectedTreatment = '';
     _selectedSymptoms = [];
     _noteController = TextEditingController();
-    _loadDataForCurrentDay(); // Cargar los datos del día actual si existen
   }
 
   @override
@@ -40,17 +41,57 @@ class _RegisterActivityPageState extends State<RegisterActivityPage> {
   void _changeDay(int days) {
     setState(() {
       _currentDay = _currentDay.add(Duration(days: days));
-      _loadDataForCurrentDay(); // Cargar los datos del nuevo día
     });
   }
 
-  void _loadDataForCurrentDay() {
-    final patientData = widget.patientData[_currentDay] ?? {};
-    setState(() {
-      _selectedTreatment = patientData['treatment'] ?? '';
-      _selectedSymptoms = List<String>.from(patientData['symptoms'] ?? []);
-      _noteController.text = patientData['customNote'] ?? '';
-    });
+  // Guardar la entrada y los síntomas seleccionados en la base de datos
+  Future<void> _saveEntry() async {
+    Database? db = await DatabaseHelper.instance.database;
+
+    // Obtener el ID del calendario del usuario
+    final List<Map<String, dynamic>> calendarResult = await db!.query(
+      DatabaseHelper.tableCalendarios,
+      where: 'id_usuario = ?',
+      whereArgs: [widget.userId],
+    );
+
+    if (calendarResult.isNotEmpty) {
+      int idCalendario = calendarResult.first['id_calendario'];
+
+      // Insertar la entrada en la tabla Calendar_Entries
+      int entryId = await db.insert(DatabaseHelper.tableCalendarEntries, {
+        'id_calendario': idCalendario,
+        'fecha': _currentDay.toIso8601String(),
+        'id_tratamiento': null, // Se puede añadir lógica de tratamiento si es necesario
+        'notas': _noteController.text,
+      });
+
+      // Insertar los síntomas seleccionados en la tabla Entry_Symptoms
+      for (String symptom in _selectedSymptoms) {
+        final List<Map<String, dynamic>> symptomResult = await db.query(
+          DatabaseHelper.tableSintomas, // Aquí usamos el nombre de la tabla
+          where: 'nombre_sintoma = ?',
+          whereArgs: [symptom],
+        );
+
+        if (symptomResult.isNotEmpty) {
+          int symptomId = symptomResult.first['id_sintoma'];
+
+          await db.insert(DatabaseHelper.tableEntrySymptoms, {
+            'id_entrada': entryId,
+            'id_sintoma': symptomId,
+          });
+        }
+      }
+
+      // Llamar a la función onSave pasada por el widget
+      widget.onSave(
+        _currentDay,
+        _selectedTreatment,
+        _selectedSymptoms,
+        _noteController.text,
+      );
+    }
   }
 
   @override
@@ -107,21 +148,33 @@ class _RegisterActivityPageState extends State<RegisterActivityPage> {
           // Síntomas
           Expanded(
             child: ListView(
-              children: ['Dolor de Cabeza', 'Dolor de Cuerpo', 'Fatiga', 'Mareos', 'Vómitos', 'Fiebre', 'Dolor de estómago', 'Sangrado', 'Hinchazón', 'Caída de cabello', 'Dificultad para respirar']
-                  .map((symptom) => CheckboxListTile(
-                        title: Text(symptom),
-                        value: _selectedSymptoms.contains(symptom),
-                        onChanged: (bool? value) {
-                          setState(() {
-                            if (value == true) {
-                              _selectedSymptoms.add(symptom);
-                            } else {
-                              _selectedSymptoms.remove(symptom);
-                            }
-                          });
-                        },
-                      ))
-                  .toList(),
+              children: [
+                'Dolor de Cabeza',
+                'Dolor de Cuerpo',
+                'Fatiga',
+                'Mareos',
+                'Vómitos',
+                'Fiebre',
+                'Dolor de Estómago',
+                'Sangrado',
+                'Hinchazón',
+                'Caída de Cabello',
+                'Dificultad para Respirar'
+              ].map((symptom) {
+                return CheckboxListTile(
+                  title: Text(symptom),
+                  value: _selectedSymptoms.contains(symptom),
+                  onChanged: (bool? value) {
+                    setState(() {
+                      if (value == true) {
+                        _selectedSymptoms.add(symptom);
+                      } else {
+                        _selectedSymptoms.remove(symptom);
+                      }
+                    });
+                  },
+                );
+              }).toList(),
             ),
           ),
           // Nota personalizada
@@ -131,12 +184,7 @@ class _RegisterActivityPageState extends State<RegisterActivityPage> {
           ),
           ElevatedButton(
             onPressed: () {
-              widget.onSave(
-                _currentDay,
-                _selectedTreatment,
-                _selectedSymptoms,
-                _noteController.text,
-              );
+              _saveEntry(); // Guardar la entrada y los síntomas en la base de datos
               Navigator.pop(context);
             },
             child: Text('Guardar'),

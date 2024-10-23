@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite/sqflite.dart'; // Para la base de datos
+import 'database.dart'; // Nuestra clase de base de datos
+import 'calendar_page.dart';//Calendario
 
 class LoginPage extends StatefulWidget {
   @override
@@ -11,34 +14,31 @@ class _LoginPageState extends State<LoginPage> {
   final _passwordController = TextEditingController();
 
   Future<void> _login() async {
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    // Obtener la instancia de la base de datos
+    Database? db = await DatabaseHelper.instance.database;
 
-    // Verificar credenciales del administrador predefinido
-    final String? adminEmail = prefs.getString('adminEmail');
-    final String? adminPassword = prefs.getString('adminPassword');
-    print('Email ingresado: ${_emailController.text}');
-    print('Contraseña ingresada: ${_passwordController.text}');
-    print('Administrador registrado: $adminEmail, $adminPassword');
+    // Consultar si existe el usuario con las credenciales
+    final List<Map<String, dynamic>> result = await db!.query(
+      DatabaseHelper.tableUsuarios,
+      where: 'email = ? AND password = ?',
+      whereArgs: [_emailController.text, _passwordController.text],
+    );
 
-    if (_emailController.text == adminEmail && _passwordController.text == adminPassword) {
-      // Login exitoso como Administrador
+    if (result.isNotEmpty) {
+      // Login exitoso, guardar estado de sesión (logged in)
+      final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('isLoggedIn', true);
-      await prefs.setString('role', 'Administrador'); // Guardar rol de administrador
-      Navigator.pushReplacementNamed(context, '/admin');
-      return;
-    }
+      await prefs.setString('email', _emailController.text); // Guardar email en SharedPreferences
 
-    // Verificar credenciales de usuarios almacenados
-    final String? storedEmail = prefs.getString('email');
-    final String? storedPassword = prefs.getString('password');
-
-    if (_emailController.text == storedEmail && _passwordController.text == storedPassword) {
-      // Login exitoso como usuario regular (Paciente)
-      await prefs.setBool('isLoggedIn', true);
-      await prefs.setString('role', 'Paciente');
-      Navigator.pushReplacementNamed(context, '/home');
+      // Navegar a CalendarPage pasando el correo electrónico del paciente
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => CalendarPage(patientEmail: _emailController.text), // Pasar el correo
+        ),
+      );
     } else {
-      // Mostrar error de credenciales incorrectas
+      // Mostrar error de credenciales inválidas
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Credenciales inválidas')));
     }
   }
@@ -62,12 +62,8 @@ class _LoginPageState extends State<LoginPage> {
             ),
             SizedBox(height: 20),
             ElevatedButton(
-              onPressed: _login,
+              onPressed: _login, // Llamar a la función de login
               child: Text('Iniciar Sesión'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pushNamed(context, '/register'), // Navegar a la pantalla de registro
-              child: Text('Registrarse'),
             ),
           ],
         ),

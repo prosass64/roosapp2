@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert'; // Para decodificar los datos JSON almacenados
+import 'dart:convert';
 
 class AdminPage extends StatefulWidget {
   @override
@@ -54,12 +54,24 @@ class _AdminPageState extends State<AdminPage> {
     });
   }
 
+  // Función para cerrar sesión
+  Future<void> _logout() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isLoggedIn', false); // Eliminar el estado de inicio de sesión
+    Navigator.pushReplacementNamed(context, '/login'); // Volver a la pantalla de inicio de sesión
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text('Lista de Pacientes'),
         actions: [
+          IconButton(
+            icon: Icon(Icons.logout),
+            onPressed: _logout, // Botón para cerrar sesión
+            tooltip: 'Cerrar sesión',
+          ),
           IconButton(
             icon: Icon(Icons.add),
             onPressed: () {
