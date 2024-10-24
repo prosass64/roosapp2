@@ -105,13 +105,27 @@ class DatabaseHelper {
     await db.insert(tableRoles, {'nombre_rol': 'Doctor'});
     await db.insert(tableRoles, {'nombre_rol': 'Paciente'});
 
-    // Obtener el rol de Administrador
-    final List<Map<String, dynamic>> rolesResult = await db.query(
+    // Obtener los roles de Administrador, Doctor y Paciente
+    final List<Map<String, dynamic>> rolesResultAdmin = await db.query(
       tableRoles,
       where: 'nombre_rol = ?',
       whereArgs: ['Administrador'],
     );
-    final int idRolAdmin = rolesResult.first['id_rol'];
+    final int idRolAdmin = rolesResultAdmin.first['id_rol'];
+
+    final List<Map<String, dynamic>> rolesResultDoctor = await db.query(
+      tableRoles,
+      where: 'nombre_rol = ?',
+      whereArgs: ['Doctor'],
+    );
+    final int idRolDoctor = rolesResultDoctor.first['id_rol'];
+
+    final List<Map<String, dynamic>> rolesResultPaciente = await db.query(
+      tableRoles,
+      where: 'nombre_rol = ?',
+      whereArgs: ['Paciente'],
+    );
+    final int idRolPaciente = rolesResultPaciente.first['id_rol'];
 
     // Insertar un usuario predeterminado como administrador
     await db.insert(tableUsuarios, {
@@ -119,8 +133,46 @@ class DatabaseHelper {
       'apellido': 'Principal',
       'email': 'admin@admin.com',
       'dpi': '1234567890123',
-      'password': 'admin123', // Contraseña por defecto, cámbiala según tu preferencia
+      'password': 'admin123', // Contraseña por defecto
       'id_rol': idRolAdmin,  // Asignar el rol de Administrador
     });
+
+    // Insertar un usuario predeterminado como doctor
+    await db.insert(tableUsuarios, {
+      'nombre': 'Doctor',
+      'apellido': 'Pruebas',
+      'email': 'doctor@clinic.com',
+      'dpi': '2345678901234',
+      'password': 'doctor123', // Contraseña para pruebas
+      'id_rol': idRolDoctor,  // Asignar el rol de Doctor
+    });
+
+    // Insertar un usuario predeterminado como paciente
+    await db.insert(tableUsuarios, {
+      'nombre': 'Paciente',
+      'apellido': 'Pruebas',
+      'email': 'paciente@clinic.com',
+      'dpi': '3456789012345',
+      'password': 'paciente123', // Contraseña para pruebas
+      'id_rol': idRolPaciente,  // Asignar el rol de Paciente
+    });
+
+    // Insertar un calendario para el paciente de prueba
+    await db.insert(tableCalendarios, {
+      'id_usuario': (await db.query(tableUsuarios, where: 'email = ?', whereArgs: ['paciente@clinic.com'])).first['id_usuario'],
+    });
+
+    await db.insert(tableSintomas, {'nombre_sintoma': 'Dolor de Cabeza', 'descripcion': 'Sensación de dolor en la cabeza o parte superior del cuello.'});
+    await db.insert(tableSintomas, {'nombre_sintoma': 'Dolor de Cuerpo', 'descripcion': 'Malestar o dolor generalizado en los músculos o articulaciones.'});
+    await db.insert(tableSintomas, {'nombre_sintoma': 'Fatiga', 'descripcion': 'Sensación de cansancio extremo o falta de energía.'});
+    await db.insert(tableSintomas, {'nombre_sintoma': 'Mareos', 'descripcion': 'Sensación de inestabilidad o de que todo gira a tu alrededor.'});
+    await db.insert(tableSintomas, {'nombre_sintoma': 'Vómitos', 'descripcion': 'Expulsión forzada del contenido del estómago a través de la boca.'});
+    await db.insert(tableSintomas, {'nombre_sintoma': 'Fiebre', 'descripcion': 'Aumento temporal de la temperatura corporal.'});
+    await db.insert(tableSintomas, {'nombre_sintoma': 'Dolor de Estómago', 'descripcion': 'Dolor o malestar en la parte abdominal.'});
+    await db.insert(tableSintomas, {'nombre_sintoma': 'Sangrado', 'descripcion': 'Pérdida de sangre por una lesión o causa interna.'});
+    await db.insert(tableSintomas, {'nombre_sintoma': 'Hinchazón', 'descripcion': 'Aumento de volumen en una parte del cuerpo debido a una acumulación de líquido.'});
+    await db.insert(tableSintomas, {'nombre_sintoma': 'Caída de Cabello', 'descripcion': 'Pérdida excesiva o anormal de cabello.'});
+    await db.insert(tableSintomas, {'nombre_sintoma': 'Dificultad para Respirar', 'descripcion': 'Problemas para inhalar suficiente aire o sentir falta de aire.'});
+
   }
 }
