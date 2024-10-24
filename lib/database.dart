@@ -90,13 +90,14 @@ class DatabaseHelper {
       )
     ''');
 
+    // Modificación en Entry_Symptoms para agregar clave primaria individual
     await db.execute('''
       CREATE TABLE $tableEntrySymptoms (
+        id_entry_symptom INTEGER PRIMARY KEY AUTOINCREMENT,
         id_sintoma INTEGER NOT NULL,
         id_entrada INTEGER NOT NULL,
         FOREIGN KEY (id_sintoma) REFERENCES $tableSintomas(id_sintoma),
-        FOREIGN KEY (id_entrada) REFERENCES $tableCalendarEntries(id_entrada),
-        PRIMARY KEY (id_sintoma, id_entrada)
+        FOREIGN KEY (id_entrada) REFERENCES $tableCalendarEntries(id_entrada)
       )
     ''');
 
@@ -162,6 +163,7 @@ class DatabaseHelper {
       'id_usuario': (await db.query(tableUsuarios, where: 'email = ?', whereArgs: ['paciente@clinic.com'])).first['id_usuario'],
     });
 
+    // Insertar los síntomas
     await db.insert(tableSintomas, {'nombre_sintoma': 'Dolor de Cabeza', 'descripcion': 'Sensación de dolor en la cabeza o parte superior del cuello.'});
     await db.insert(tableSintomas, {'nombre_sintoma': 'Dolor de Cuerpo', 'descripcion': 'Malestar o dolor generalizado en los músculos o articulaciones.'});
     await db.insert(tableSintomas, {'nombre_sintoma': 'Fatiga', 'descripcion': 'Sensación de cansancio extremo o falta de energía.'});
@@ -174,5 +176,34 @@ class DatabaseHelper {
     await db.insert(tableSintomas, {'nombre_sintoma': 'Caída de Cabello', 'descripcion': 'Pérdida excesiva o anormal de cabello.'});
     await db.insert(tableSintomas, {'nombre_sintoma': 'Dificultad para Respirar', 'descripcion': 'Problemas para inhalar suficiente aire o sentir falta de aire.'});
 
+    // Insertar tratamientos para pacientes con cáncer
+    await db.insert(tableTratamientos, {
+      'nombre_tratamiento': 'Quimioterapia',
+      'descripcion': 'Tratamiento que utiliza medicamentos para destruir las células cancerosas al detener o ralentizar su crecimiento.',
+    });
+    await db.insert(tableTratamientos, {
+      'nombre_tratamiento': 'Radioterapia',
+      'descripcion': 'Tratamiento que utiliza radiación para destruir células cancerosas y reducir el tamaño de los tumores.',
+    });
+    await db.insert(tableTratamientos, {
+      'nombre_tratamiento': 'Inmunoterapia',
+      'descripcion': 'Tratamiento que estimula el sistema inmunológico del cuerpo para combatir el cáncer.',
+    });
+    await db.insert(tableTratamientos, {
+      'nombre_tratamiento': 'Terapia Dirigida',
+      'descripcion': 'Tratamiento que utiliza medicamentos o sustancias para atacar células cancerosas específicas sin dañar las células normales.',
+    });
+    await db.insert(tableTratamientos, {
+      'nombre_tratamiento': 'Hormonoterapia',
+      'descripcion': 'Tratamiento que bloquea o disminuye las hormonas que promueven el crecimiento del cáncer, particularmente en cánceres de mama o próstata.',
+    });
+    await db.insert(tableTratamientos, {
+      'nombre_tratamiento': 'Cirugía',
+      'descripcion': 'Procedimiento para extirpar físicamente el tumor del cuerpo.',
+    });
+    await db.insert(tableTratamientos, {
+      'nombre_tratamiento': 'Terapia con Células Madre',
+      'descripcion': 'Tratamiento que restaura las células madre dañadas o destruidas por la quimioterapia o radioterapia.',
+    });
   }
 }

@@ -73,14 +73,43 @@ class _RegisterActivityPageState extends State<RegisterActivityPage> {
           _existingEntryId = entryResult.first['id_entrada']; // Guardar el ID de la entrada existente
           _noteController.text = entryResult.first['notas'] ?? '';
         });
+
+        // Cargar los síntomas seleccionados para la entrada actual
+        _loadSelectedSymptoms();
       } else {
         setState(() {
           _existingEntryId = null; // No existe entrada para este día
           _noteController.clear(); // Limpiar los datos
+          _selectedSymptoms = []; // Limpiar los síntomas seleccionados
         });
       }
     }
   }
+
+  // Cargar los síntomas seleccionados para la entrada existente
+Future<void> _loadSelectedSymptoms() async {
+  if (_existingEntryId == null) return; // Si no hay entrada existente, salir
+
+  Database? db = await DatabaseHelper.instance.database;
+
+  // Verifica si db no es nulo antes de continuar
+  if (db == null) {
+    return; // Si db es null, retorna y no continúa
+  }
+
+  // Obtener los síntomas asociados a la entrada
+  final List<Map<String, dynamic>> selectedSymptomsResult = await db.query(
+    '${DatabaseHelper.tableEntrySymptoms} es JOIN ${DatabaseHelper.tableSintomas} s ON es.id_sintoma = s.id_sintoma',
+    columns: ['s.nombre_sintoma'],
+    where: 'es.id_entrada = ?',
+    whereArgs: [_existingEntryId],
+  );
+
+  setState(() {
+    _selectedSymptoms = selectedSymptomsResult.map((symptom) => symptom['nombre_sintoma'].toString()).toList();
+  });
+}
+
 
   // Guardar la entrada y los síntomas seleccionados en la base de datos
   Future<void> _saveEntry() async {
@@ -226,6 +255,9 @@ class _RegisterActivityPageState extends State<RegisterActivityPage> {
                         _selectedSymptoms.add(symptom);
                       } else {
                         _selectedSymptoms.remove(symptom);
+
+                        // Borrar el síntoma deseleccionado de la tabla Entry_Symptoms
+                        _removeSymptomFromDatabase(symptom);
                       }
                     });
                   },
@@ -249,4 +281,33 @@ class _RegisterActivityPageState extends State<RegisterActivityPage> {
       ),
     );
   }
+
+  // Función para eliminar un síntoma deseleccionado de la base de datos
+Future<void> _removeSymptomFromDatabase(String symptom) async {
+  if (_existingEntryId == null) return;
+
+  Database? db = await DatabaseHelper.instance.database;
+
+  // Verifica si db no es nulo antes de continuar
+  if (db == null) {
+    return; // Si db es null, retorna y no continúa
+  }
+
+  final List<Map<String, dynamic>> symptomResult = await db.query(
+    DatabaseHelper.tableSintomas,
+    where: 'nombre_sintoma = ?',
+    whereArgs: [symptom],
+  );
+
+  if (symptomResult.isNotEmpty) {
+    int symptomId = symptomResult.first['id_sintoma'];
+
+    await db.delete(
+      DatabaseHelper.tableEntrySymptoms,
+      where: 'id_entrada = ? AND id_sintoma = ?',
+      whereArgs: [_existingEntryId, symptomId],
+    );
+  }
+}
+
 }
