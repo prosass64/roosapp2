@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart'; // Para la base de datos
+//import 'package:dropdown_search/dropdown_search.dart'; // Para el Dropdown con búsqueda
 import 'database.dart'; // Importar la clase de la base de datos
 
 class RegisterActivityPage extends StatefulWidget {
@@ -23,6 +24,7 @@ class _RegisterActivityPageState extends State<RegisterActivityPage> {
   late TextEditingController _noteController;
   late DateTime _currentDay;
   int? _existingEntryId; // Para almacenar si ya existe una entrada
+  List<String> _treatments = []; // Lista de tratamientos disponibles
 
   @override
   void initState() {
@@ -32,12 +34,27 @@ class _RegisterActivityPageState extends State<RegisterActivityPage> {
     _selectedSymptoms = [];
     _noteController = TextEditingController();
     _loadExistingEntry(); // Cargar la entrada existente si la hay
+    _loadTreatments(); // Cargar los tratamientos disponibles
   }
 
   @override
   void dispose() {
     _noteController.dispose();
     super.dispose();
+  }
+
+  // Cargar los tratamientos disponibles desde la base de datos
+  Future<void> _loadTreatments() async {
+    Database? db = await DatabaseHelper.instance.database;
+    
+    // Verificar si db no es nulo antes de continuar
+    if (db == null) return;
+
+    final List<Map<String, dynamic>> treatmentResults = await db.query(DatabaseHelper.tableTratamientos);
+
+    setState(() {
+      _treatments = treatmentResults.map((row) => row['nombre_tratamiento'].toString()).toList();
+    });
   }
 
   void _changeDay(int days) {
@@ -87,31 +104,29 @@ class _RegisterActivityPageState extends State<RegisterActivityPage> {
   }
 
   // Cargar los síntomas seleccionados para la entrada existente
-Future<void> _loadSelectedSymptoms() async {
-  if (_existingEntryId == null) return; // Si no hay entrada existente, salir
+  Future<void> _loadSelectedSymptoms() async {
+    if (_existingEntryId == null) return; // Si no hay entrada existente, salir
 
-  Database? db = await DatabaseHelper.instance.database;
+    Database? db = await DatabaseHelper.instance.database;
 
-  // Verifica si db no es nulo antes de continuar
-  if (db == null) {
-    return; // Si db es null, retorna y no continúa
+    // Verifica si db no es nulo antes de continuar
+    if (db == null) return;
+
+    // Obtener los síntomas asociados a la entrada
+    final List<Map<String, dynamic>> selectedSymptomsResult = await db.query(
+      '${DatabaseHelper.tableEntrySymptoms} es JOIN ${DatabaseHelper.tableSintomas} s ON es.id_sintoma = s.id_sintoma',
+      columns: ['s.nombre_sintoma'],
+      where: 'es.id_entrada = ?',
+      whereArgs: [_existingEntryId],
+    );
+
+    setState(() {
+      _selectedSymptoms = selectedSymptomsResult.map((symptom) => symptom['nombre_sintoma'].toString()).toList();
+    });
   }
 
-  // Obtener los síntomas asociados a la entrada
-  final List<Map<String, dynamic>> selectedSymptomsResult = await db.query(
-    '${DatabaseHelper.tableEntrySymptoms} es JOIN ${DatabaseHelper.tableSintomas} s ON es.id_sintoma = s.id_sintoma',
-    columns: ['s.nombre_sintoma'],
-    where: 'es.id_entrada = ?',
-    whereArgs: [_existingEntryId],
-  );
-
-  setState(() {
-    _selectedSymptoms = selectedSymptomsResult.map((symptom) => symptom['nombre_sintoma'].toString()).toList();
-  });
-}
-
-
   // Guardar la entrada y los síntomas seleccionados en la base de datos
+
   Future<void> _saveEntry() async {
     Database? db = await DatabaseHelper.instance.database;
 
@@ -124,12 +139,27 @@ Future<void> _loadSelectedSymptoms() async {
 
     if (calendarResult.isNotEmpty) {
       int idCalendario = calendarResult.first['id_calendario'];
+      int? idTratamiento;
+
+      // Obtener el ID del tratamiento seleccionado (si hay)
+      if (_selectedTreatment.isNotEmpty) {
+        final List<Map<String, dynamic>> treatmentResult = await db.query(
+          DatabaseHelper.tableTratamientos,
+          where: 'nombre_tratamiento = ?',
+          whereArgs: [_selectedTreatment],
+        );
+        
+        if (treatmentResult.isNotEmpty) {
+          idTratamiento = treatmentResult.first['id_tratamiento'];
+        }
+      }
 
       if (_existingEntryId != null) {
-        // Si ya existe una entrada, actualizarla
+        // Si ya existe una entrada, actualizarla con el tratamiento
         await db.update(
           DatabaseHelper.tableCalendarEntries,
           {
+            'id_tratamiento': idTratamiento, // Asignar el ID del tratamiento (o null)
             'notas': _noteController.text,
           },
           where: 'id_entrada = ?',
@@ -140,12 +170,12 @@ Future<void> _loadSelectedSymptoms() async {
         _existingEntryId = await db.insert(DatabaseHelper.tableCalendarEntries, {
           'id_calendario': idCalendario,
           'fecha': _currentDay.toIso8601String(),
-          'id_tratamiento': null, // Se puede añadir lógica de tratamiento si es necesario
+          'id_tratamiento': idTratamiento, // Asignar el ID del tratamiento (o null)
           'notas': _noteController.text,
         });
       }
 
-      // Insertar o actualizar los síntomas seleccionados en la tabla Entry_Symptoms
+      // Guardar o actualizar los síntomas
       await db.delete(
         DatabaseHelper.tableEntrySymptoms,
         where: 'id_entrada = ?',
@@ -213,8 +243,9 @@ Future<void> _loadSelectedSymptoms() async {
               ),
             ],
           ),
-          // Tratamiento
-          DropdownButton<String>(
+          // Dropdown de tratamientos con búsqueda
+          
+          DropdownButtonFormField<String>(
             value: _selectedTreatment.isEmpty ? null : _selectedTreatment,
             hint: Text('Selecciona un tratamiento'),
             onChanged: (String? newValue) {
@@ -222,14 +253,27 @@ Future<void> _loadSelectedSymptoms() async {
                 _selectedTreatment = newValue ?? '';
               });
             },
-            items: <String>['Tratamiento A', 'Tratamiento B', 'Tratamiento C']
-                .map<DropdownMenuItem<String>>((String value) {
-              return DropdownMenuItem<String>(
-                value: value,
-                child: Text(value),
-              );
-            }).toList(),
+            items: [
+              DropdownMenuItem<String>(
+                value: '', // Representa "Ningún tratamiento"
+                child: Text('Ningún tratamiento'),
+              ),
+              ..._treatments.map((String treatment) {
+                return DropdownMenuItem<String>(
+                  value: treatment,
+                  child: Text(treatment),
+                );
+              }).toList(),
+            ],
+            validator: (value) {
+              if (value != null && value.isNotEmpty && !_treatments.contains(value)) {
+                return 'Por favor, selecciona un tratamiento válido';
+              }
+              return null;
+            },
           ),
+
+          
           // Síntomas
           Expanded(
             child: ListView(
@@ -283,31 +327,27 @@ Future<void> _loadSelectedSymptoms() async {
   }
 
   // Función para eliminar un síntoma deseleccionado de la base de datos
-Future<void> _removeSymptomFromDatabase(String symptom) async {
-  if (_existingEntryId == null) return;
+  Future<void> _removeSymptomFromDatabase(String symptom) async {
+    if (_existingEntryId == null) return;
 
-  Database? db = await DatabaseHelper.instance.database;
+    Database? db = await DatabaseHelper.instance.database;
 
-  // Verifica si db no es nulo antes de continuar
-  if (db == null) {
-    return; // Si db es null, retorna y no continúa
-  }
+    if (db == null) return;
 
-  final List<Map<String, dynamic>> symptomResult = await db.query(
-    DatabaseHelper.tableSintomas,
-    where: 'nombre_sintoma = ?',
-    whereArgs: [symptom],
-  );
-
-  if (symptomResult.isNotEmpty) {
-    int symptomId = symptomResult.first['id_sintoma'];
-
-    await db.delete(
-      DatabaseHelper.tableEntrySymptoms,
-      where: 'id_entrada = ? AND id_sintoma = ?',
-      whereArgs: [_existingEntryId, symptomId],
+    final List<Map<String, dynamic>> symptomResult = await db.query(
+      DatabaseHelper.tableSintomas,
+      where: 'nombre_sintoma = ?',
+      whereArgs: [symptom],
     );
-  }
-}
 
+    if (symptomResult.isNotEmpty) {
+      int symptomId = symptomResult.first['id_sintoma'];
+
+      await db.delete(
+        DatabaseHelper.tableEntrySymptoms,
+        where: 'id_entrada = ? AND id_sintoma = ?',
+        whereArgs: [_existingEntryId, symptomId],
+      );
+    }
+  }
 }
