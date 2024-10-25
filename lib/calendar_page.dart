@@ -218,21 +218,65 @@ Widget _buildSingleMarker(Color color) {
 
 
   // Construir la lista de entradas registradas
-  Widget _buildRegisteredEntries() {
-    final entries = _entriesForDay[_selectedDay] ?? [];
+  // Construir la lista de entradas registradas (incluyendo notas, síntomas y tratamientos)
+Widget _buildRegisteredEntries() {
+  final entries = _entriesForDay[_selectedDay] ?? [];
 
-    if (entries.isEmpty) {
-      return Center(child: Text('No hay entradas para este día.'));
-    }
-
-    return ListView(
-      children: entries.map((entry) {
-        return ListTile(
-          title: Text('Nota: ${entry['notas']}'),
-        );
-      }).toList(),
-    );
+  if (entries.isEmpty) {
+    return Center(child: Text('No hay entradas para este día.'));
   }
+
+  return ListView(
+    children: entries.map((entry) {
+      // Obtener detalles de notas, síntomas y tratamientos
+      final String notes = entry['notas'] != null && entry['notas'].isNotEmpty ? entry['notas'] : 'Sin notas';
+      final String treatment = entry['treatment_name'] != null && entry['treatment_name'].isNotEmpty ? entry['treatment_name'] : 'Sin tratamiento';
+      
+      // Para los síntomas, necesitas hacer una consulta adicional para obtener los nombres de los síntomas asociados
+      final int entryId = entry['id_entrada'];
+      return FutureBuilder<List<String>>(
+        future: _loadSymptomsForEntry(entryId), // Cargar los síntomas para esta entrada
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return CircularProgressIndicator(); // Mostrar un indicador de carga mientras se obtienen los síntomas
+          }
+
+          final List<String> symptoms = snapshot.data ?? [];
+          final String symptomsText = symptoms.isNotEmpty ? symptoms.join(', ') : 'Sin síntomas';
+
+          // Mostrar los detalles
+          return ListTile(
+            title: Text('Notas: $notes'),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Tratamiento: $treatment'),
+                Text('Síntomas: $symptomsText'),
+              ],
+            ),
+          );
+        },
+      );
+    }).toList(),
+  );
+}
+
+// Función para cargar los síntomas asociados a una entrada
+Future<List<String>> _loadSymptomsForEntry(int entryId) async {
+  Database? db = await DatabaseHelper.instance.database;
+
+  // Consultar los síntomas asociados a esta entrada
+  final List<Map<String, dynamic>> result = await db!.rawQuery('''
+    SELECT s.nombre_sintoma
+    FROM ${DatabaseHelper.tableEntrySymptoms} es
+    JOIN ${DatabaseHelper.tableSintomas} s ON es.id_sintoma = s.id_sintoma
+    WHERE es.id_entrada = ?
+  ''', [entryId]);
+
+  // Devolver una lista con los nombres de los síntomas
+  return result.map((row) => row['nombre_sintoma'] as String).toList();
+}
+
 
   // Función para cerrar sesión
   Future<void> _logout() async {
