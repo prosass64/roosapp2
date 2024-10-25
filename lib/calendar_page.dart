@@ -155,7 +155,7 @@ class _CalendarPageState extends State<CalendarPage> {
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Error: ID del paciente no encontrado.'),
+                    content: Text('Error: ID del paciente no encontrado. Por Favor Cerrar sesión'),
                   ),
                 );
               }
