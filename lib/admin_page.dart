@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart'; // Para la base de datos
 import 'package:shared_preferences/shared_preferences.dart';
 import 'database.dart'; // Tu base de datos
+import 'consulta_calendario_page.dart'; // Importar la nueva página
 
 class AdminPage extends StatefulWidget {
   @override
@@ -132,6 +133,18 @@ class _AdminPageState extends State<AdminPage> {
                         return ListTile(
                           title: Text('${patient['nombre']} ${patient['apellido']}'), // Mostrar nombre y apellido
                           subtitle: Text('DPI: ${patient['dpi']} - Correo: ${patient['email']}'),
+                          onTap: () {
+                            // Navegar a la página de consulta calendario al seleccionar un paciente
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ConsultaCalendarioPage(
+                                  patientId: patient['id_usuario'], // Pasar el ID del paciente a la nueva página
+                                  patientName: '${patient['nombre']} ${patient['apellido']}', // Pasar el nombre completo
+                                ),
+                              ),
+                            );
+                          },
                         );
                       },
                     ),
