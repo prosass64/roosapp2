@@ -219,40 +219,85 @@ Widget _buildSingleMarker(Color color) {
 
   // Construir la lista de entradas registradas
   // Construir la lista de entradas registradas (incluyendo notas, síntomas y tratamientos)
+// Construir la lista de entradas registradas (incluyendo notas, síntomas y tratamientos) con mejor formato
 Widget _buildRegisteredEntries() {
   final entries = _entriesForDay[_selectedDay] ?? [];
 
   if (entries.isEmpty) {
-    return Center(child: Text('No hay entradas para este día.'));
+    return Center(child: Text('No hay entradas para este día.', style: TextStyle(fontSize: 16.0, fontStyle: FontStyle.italic)));
   }
 
   return ListView(
+    padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
     children: entries.map((entry) {
       // Obtener detalles de notas, síntomas y tratamientos
       final String notes = entry['notas'] != null && entry['notas'].isNotEmpty ? entry['notas'] : 'Sin notas';
       final String treatment = entry['treatment_name'] != null && entry['treatment_name'].isNotEmpty ? entry['treatment_name'] : 'Sin tratamiento';
       
-      // Para los síntomas, necesitas hacer una consulta adicional para obtener los nombres de los síntomas asociados
+      // Cargar los síntomas asociados a la entrada
       final int entryId = entry['id_entrada'];
       return FutureBuilder<List<String>>(
         future: _loadSymptomsForEntry(entryId), // Cargar los síntomas para esta entrada
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return CircularProgressIndicator(); // Mostrar un indicador de carga mientras se obtienen los síntomas
+            return Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: CircularProgressIndicator(),
+            ); // Mostrar un indicador de carga mientras se obtienen los síntomas
           }
 
           final List<String> symptoms = snapshot.data ?? [];
           final String symptomsText = symptoms.isNotEmpty ? symptoms.join(', ') : 'Sin síntomas';
 
-          // Mostrar los detalles
-          return ListTile(
-            title: Text('Notas: $notes'),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Tratamiento: $treatment'),
-                Text('Síntomas: $symptomsText'),
-              ],
+          // Mostrar los detalles con formato
+          return Card(
+            elevation: 3.0,
+            margin: EdgeInsets.symmetric(vertical: 8.0),
+            child: Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Título de la entrada (con íconos)
+                  Row(
+                    children: [
+                      Icon(Icons.notes, color: Colors.black54),
+                      SizedBox(width: 8.0),
+                      Text('Notas:', style: TextStyle(fontSize: 16.0, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 32.0, top: 4.0, bottom: 8.0),
+                    child: Text(notes, style: TextStyle(fontSize: 14.0, color: Colors.black87)),
+                  ),
+
+                  // Tratamiento
+                  Row(
+                    children: [
+                      Icon(Icons.medical_services, color: Colors.blue),
+                      SizedBox(width: 8.0),
+                      Text('Tratamiento:', style: TextStyle(fontSize: 16.0, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 32.0, top: 4.0, bottom: 8.0),
+                    child: Text(treatment, style: TextStyle(fontSize: 14.0, color: Colors.black87)),
+                  ),
+
+                  // Síntomas
+                  Row(
+                    children: [
+                      Icon(Icons.sick, color: Colors.orange),
+                      SizedBox(width: 8.0),
+                      Text('Síntomas:', style: TextStyle(fontSize: 16.0, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 32.0, top: 4.0, bottom: 8.0),
+                    child: Text(symptomsText, style: TextStyle(fontSize: 14.0, color: Colors.black87)),
+                  ),
+                ],
+              ),
             ),
           );
         },
@@ -276,6 +321,7 @@ Future<List<String>> _loadSymptomsForEntry(int entryId) async {
   // Devolver una lista con los nombres de los síntomas
   return result.map((row) => row['nombre_sintoma'] as String).toList();
 }
+
 
 
   // Función para cerrar sesión
