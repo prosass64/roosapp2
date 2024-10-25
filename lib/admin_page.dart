@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:sqflite/sqflite.dart'; // Para la base de datos
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
+import 'database.dart'; // Tu base de datos
 
 class AdminPage extends StatefulWidget {
   @override
@@ -10,8 +11,8 @@ class AdminPage extends StatefulWidget {
 class _AdminPageState extends State<AdminPage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchCriteria = 'DPI';
-  List<Map<String, String>> _patients = [];
-  List<Map<String, String>> _filteredPatients = [];
+  List<Map<String, dynamic>> _patients = [];
+  List<Map<String, dynamic>> _filteredPatients = [];
 
   @override
   void initState() {
@@ -19,16 +20,26 @@ class _AdminPageState extends State<AdminPage> {
     _loadPatients(); // Cargar la lista de pacientes
   }
 
-  // Función para cargar pacientes desde SharedPreferences
+  // Función para cargar pacientes desde la base de datos
   Future<void> _loadPatients() async {
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
-    List<String>? storedPatients = prefs.getStringList('patients'); // Obtener la lista de pacientes
-    if (storedPatients != null) {
+    Database? db = await DatabaseHelper.instance.database;
+
+    // Consulta a la base de datos para obtener solo los pacientes (usuarios con id_rol correspondiente a "Paciente")
+    final List<Map<String, dynamic>> result = await db!.query(
+      DatabaseHelper.tableUsuarios,
+      where: 'id_rol = (SELECT id_rol FROM ${DatabaseHelper.tableRoles} WHERE nombre_rol = ?)',
+      whereArgs: ['Paciente'],
+    );
+
+    if (result.isNotEmpty) {
       setState(() {
-        _patients = storedPatients
-            .map((patient) => Map<String, String>.from(jsonDecode(patient)))
-            .toList();
+        _patients = result;
         _filteredPatients = List.from(_patients); // Mostrar todos los pacientes por defecto
+      });
+    } else {
+      setState(() {
+        _patients = [];
+        _filteredPatients = [];
       });
     }
   }
@@ -42,9 +53,10 @@ class _AdminPageState extends State<AdminPage> {
         _filteredPatients = _patients.where((patient) {
           final searchText = _searchController.text.toLowerCase();
           if (_searchCriteria == 'DPI') {
-            return patient['dpi']!.toLowerCase().contains(searchText);
+            return patient['dpi']!.toString().toLowerCase().contains(searchText);
           } else if (_searchCriteria == 'Nombre') {
-            return patient['name']!.toLowerCase().contains(searchText);
+            return patient['nombre']!.toLowerCase().contains(searchText) ||
+                   patient['apellido']!.toLowerCase().contains(searchText);
           } else if (_searchCriteria == 'Correo') {
             return patient['email']!.toLowerCase().contains(searchText);
           }
@@ -118,7 +130,7 @@ class _AdminPageState extends State<AdminPage> {
                       itemBuilder: (context, index) {
                         final patient = _filteredPatients[index];
                         return ListTile(
-                          title: Text(patient['name'] ?? 'Sin nombre'),
+                          title: Text('${patient['nombre']} ${patient['apellido']}'), // Mostrar nombre y apellido
                           subtitle: Text('DPI: ${patient['dpi']} - Correo: ${patient['email']}'),
                         );
                       },
