@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart'; // Para la base de datos
 import 'database.dart'; // Nuestra clase de base de datos
-import 'calendar_page.dart'; //Calendario
-import 'register_page.dart'; // Importar la página de registro
+import 'calendar_page.dart'; // Calendario
+import 'register_page.dart'; // Página de registro
+import 'admin_page.dart'; // Página de administrador
 
 class LoginPage extends StatefulWidget {
   @override
@@ -31,13 +32,36 @@ class _LoginPageState extends State<LoginPage> {
       await prefs.setBool('isLoggedIn', true);
       await prefs.setString('email', _emailController.text); // Guardar email en SharedPreferences
 
-      // Navegar a CalendarPage pasando el correo electrónico del paciente
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => CalendarPage(patientEmail: _emailController.text), // Pasar el correo
-        ),
+      // Obtener el id_rol del usuario logueado
+      int userRoleId = result.first['id_rol'];
+
+      // Verificar si es Administrador
+      final List<Map<String, dynamic>> roleResult = await db.query(
+        DatabaseHelper.tableRoles,
+        where: 'id_rol = ?',
+        whereArgs: [userRoleId],
       );
+
+      String userRoleName = roleResult.first['nombre_rol'];
+
+      // Redirigir según el rol del usuario
+      if (userRoleName == 'Administrador') {
+        // Redirigir a AdminPage si el rol es Administrador
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => AdminPage(),
+          ),
+        );
+      } else {
+        // Redirigir a CalendarPage si no es Administrador
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CalendarPage(patientEmail: _emailController.text), // Pasar el correo
+          ),
+        );
+      }
     } else {
       // Mostrar error de credenciales inválidas
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Credenciales inválidas')));
