@@ -3,6 +3,7 @@ import 'package:sqflite/sqflite.dart'; // Para la base de datos
 import 'package:shared_preferences/shared_preferences.dart';
 import 'database.dart'; // Tu base de datos
 import 'consulta_calendario_page.dart'; // Importar la nueva página
+import 'admin_add_user_page.dart'; // Importar la página para agregar usuarios
 
 class AdminPage extends StatefulWidget {
   @override
@@ -85,12 +86,17 @@ class _AdminPageState extends State<AdminPage> {
             onPressed: _logout, // Botón para cerrar sesión
             tooltip: 'Cerrar sesión',
           ),
-          IconButton(
-            icon: Icon(Icons.add),
+          // Cambiar el IconButton a ElevatedButton con texto
+          ElevatedButton(
             onPressed: () {
-              Navigator.pushNamed(context, '/admin_add_user'); // Navegar a la pantalla de agregar usuarios
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AdminAddUserPage(), // Redirigir a admin_add_user_page.dart
+                ),
+              );
             },
-            tooltip: 'Agregar Administrador o Doctor',
+            child: Text('Agregar Usuarios'),
           ),
         ],
       ),
