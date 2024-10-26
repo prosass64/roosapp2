@@ -45,8 +45,8 @@ class _LoginPageState extends State<LoginPage> {
       String userRoleName = roleResult.first['nombre_rol'];
 
       // Redirigir según el rol del usuario
-      if (userRoleName == 'Administrador') {
-        // Redirigir a AdminPage si el rol es Administrador
+      if (userRoleName == 'Administrador' || userRoleName == 'Doctor') {
+        // Redirigir a AdminPage si el rol es Administrador o Doctor
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -54,7 +54,7 @@ class _LoginPageState extends State<LoginPage> {
           ),
         );
       } else {
-        // Redirigir a CalendarPage si no es Administrador
+        // Redirigir a CalendarPage si no es Administrador ni Doctor
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(

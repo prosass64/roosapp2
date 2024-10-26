@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:sqflite/sqflite.dart'; // Para la base de datos
+import 'package:sqflite/sqflite.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'database.dart'; // Tu base de datos
-import 'consulta_calendario_page.dart'; // Importar la nueva página
-import 'admin_add_user_page.dart'; // Importar la página para agregar usuarios
+import 'database.dart';
+import 'consulta_calendario_page.dart';
+import 'admin_add_user_page.dart';
 
 class AdminPage extends StatefulWidget {
   @override
@@ -15,18 +15,44 @@ class _AdminPageState extends State<AdminPage> {
   String _searchCriteria = 'DPI';
   List<Map<String, dynamic>> _patients = [];
   List<Map<String, dynamic>> _filteredPatients = [];
+  bool _isAdmin = false; // Variable para verificar si es Administrador
 
   @override
   void initState() {
     super.initState();
+    _checkUserRole(); // Verificar el rol del usuario
     _loadPatients(); // Cargar la lista de pacientes
+  }
+
+  // Función para verificar el rol del usuario actual
+  Future<void> _checkUserRole() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final String? userEmail = prefs.getString('email');
+
+    if (userEmail != null) {
+      Database? db = await DatabaseHelper.instance.database;
+      
+      // Consultar el rol del usuario usando su correo electrónico
+      final List<Map<String, dynamic>> result = await db!.rawQuery('''
+        SELECT r.nombre_rol
+        FROM ${DatabaseHelper.tableUsuarios} u
+        JOIN ${DatabaseHelper.tableRoles} r ON u.id_rol = r.id_rol
+        WHERE u.email = ?
+      ''', [userEmail]);
+
+      if (result.isNotEmpty) {
+        setState(() {
+          _isAdmin = result.first['nombre_rol'] == 'Administrador';
+        });
+      }
+    }
   }
 
   // Función para cargar pacientes desde la base de datos
   Future<void> _loadPatients() async {
     Database? db = await DatabaseHelper.instance.database;
 
-    // Consulta a la base de datos para obtener solo los pacientes (usuarios con id_rol correspondiente a "Paciente")
+    // Consulta a la base de datos para obtener solo los pacientes
     final List<Map<String, dynamic>> result = await db!.query(
       DatabaseHelper.tableUsuarios,
       where: 'id_rol = (SELECT id_rol FROM ${DatabaseHelper.tableRoles} WHERE nombre_rol = ?)',
@@ -36,7 +62,7 @@ class _AdminPageState extends State<AdminPage> {
     if (result.isNotEmpty) {
       setState(() {
         _patients = result;
-        _filteredPatients = List.from(_patients); // Mostrar todos los pacientes por defecto
+        _filteredPatients = List.from(_patients);
       });
     } else {
       setState(() {
@@ -50,7 +76,7 @@ class _AdminPageState extends State<AdminPage> {
   void _searchPatient() {
     setState(() {
       if (_searchController.text.isEmpty) {
-        _filteredPatients = List.from(_patients); // Si no hay búsqueda, mostramos todos
+        _filteredPatients = List.from(_patients);
       } else {
         _filteredPatients = _patients.where((patient) {
           final searchText = _searchController.text.toLowerCase();
@@ -71,8 +97,8 @@ class _AdminPageState extends State<AdminPage> {
   // Función para cerrar sesión
   Future<void> _logout() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isLoggedIn', false); // Eliminar el estado de inicio de sesión
-    Navigator.pushReplacementNamed(context, '/login'); // Volver a la pantalla de inicio de sesión
+    await prefs.setBool('isLoggedIn', false);
+    Navigator.pushReplacementNamed(context, '/login');
   }
 
   @override
@@ -83,21 +109,22 @@ class _AdminPageState extends State<AdminPage> {
         actions: [
           IconButton(
             icon: Icon(Icons.logout),
-            onPressed: _logout, // Botón para cerrar sesión
+            onPressed: _logout,
             tooltip: 'Cerrar sesión',
           ),
-          // Cambiar el IconButton a ElevatedButton con texto
-          ElevatedButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AdminAddUserPage(), // Redirigir a admin_add_user_page.dart
-                ),
-              );
-            },
-            child: Text('Agregar Usuarios'),
-          ),
+          // Mostrar el botón "Agregar Usuarios" solo si el rol es Administrador
+          if (_isAdmin) 
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AdminAddUserPage(),
+                  ),
+                );
+              },
+              child: Text('Agregar Usuarios'),
+            ),
         ],
       ),
       body: Padding(
@@ -125,7 +152,7 @@ class _AdminPageState extends State<AdminPage> {
                 labelText: 'Ingrese $_searchCriteria del paciente',
               ),
               onChanged: (text) {
-                _searchPatient(); // Actualizar la búsqueda en tiempo real
+                _searchPatient();
               },
             ),
             SizedBox(height: 20),
@@ -137,16 +164,15 @@ class _AdminPageState extends State<AdminPage> {
                       itemBuilder: (context, index) {
                         final patient = _filteredPatients[index];
                         return ListTile(
-                          title: Text('${patient['nombre']} ${patient['apellido']}'), // Mostrar nombre y apellido
+                          title: Text('${patient['nombre']} ${patient['apellido']}'),
                           subtitle: Text('DPI: ${patient['dpi']} - Correo: ${patient['email']}'),
                           onTap: () {
-                            // Navegar a la página de consulta calendario al seleccionar un paciente
                             Navigator.push(
                               context,
                               MaterialPageRoute(
                                 builder: (context) => ConsultaCalendarioPage(
-                                  patientId: patient['id_usuario'], // Pasar el ID del paciente a la nueva página
-                                  patientName: '${patient['nombre']} ${patient['apellido']}', // Pasar el nombre completo
+                                  patientId: patient['id_usuario'],
+                                  patientName: '${patient['nombre']} ${patient['apellido']}',
                                 ),
                               ),
                             );
